@@ -48,6 +48,11 @@
   ],
   "author": "zzzeros0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zzzeros0/nbsp.git"
+  },
+  "homepage": "https://github.com/zzzeros0/nbsp.git#readme",
   "devDependencies": {
     "@types/node": "^25.2.3",
     "typescript": "^5.9.3"
