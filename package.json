@@ -1,0 +1,55 @@
+{
+  "name": "@zzzeros0/nbsp",
+  "version": "0.1.0",
+  "description": "Zero-copy fixed-size binary structures for NodeJS TypeScript",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "keywords": [
+    "binary",
+    "hex",
+    "buffer",
+    "array",
+    "json",
+    "data",
+    "raw",
+    "data-structure",
+    "data-protocol",
+    "struct",
+    "API",
+    "structure",
+    "communication",
+    "protocol",
+    "network",
+    "zero-copy",
+    "zero-copy-structure",
+    "zero-copy-protocol",
+    "zero-copy-communication",
+    "zero-copy-network",
+    "cpp",
+    "c++",
+    "arduino",
+    "esp32",
+    "mqtt",
+    "amqp",
+    "ts",
+    "typescript"
+  ],
+  "author": "zzzeros0",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3"
+  }
+}
