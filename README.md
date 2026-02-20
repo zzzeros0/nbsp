@@ -342,3 +342,54 @@ structure({
   property2: DataType.INT64LE,
 });
 ```
+
+### Floating point (FLOAT32) precision
+
+NBSP uses IEEE-754 floating point representations for FLOAT32 and FLOAT64, exactly like C, C++, Rust, Java, etc.
+This means that some decimal values cannot be represented exactly in binary.
+
+**Why does `0.4` become `0.4000000059604645`?**
+
+FLOAT32 is a 32-bit single-precision IEEE-754 float.
+
+The decimal number 0.4 cannot be represented exactly using a finite binary fraction, so the closest representable value is stored instead.
+
+Example:
+
+```ts
+const value = 0.4;
+
+instance.floatValue = value;
+console.log(instance.floatValue); // 0.4000000059604645
+```
+
+This is not a bug in NBSP.
+It is the actual value stored in memory and this behavior is universal
+
+The same thing happens in other languages:
+
+```cpp
+float x = 0.4f;
+printf("%.17f\n", x); // 0.4000000059604645
+```
+
+NBSP intentionally exposes the real binary value, without rounding or post-processing, to ensure:
+
+- Full transparency
+- Bit-exact compatibility with C/C++ structures
+- Deterministic binary payloads
+
+If you need to compare floating point values, never use strict equality:
+
+a === b // ❌ unsafe for floats
+
+Instead, compare with a tolerance:
+
+```ts
+Math.abs(a - b) < 1e-6; // ✅ safe
+```
+
+Or, when possible:
+
+- Use integers (scaled values, fixed-point)
+- Use FLOAT64 if higher precision is required.

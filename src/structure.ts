@@ -59,7 +59,7 @@ export type Structure<T extends DomainObject> = T & StructureMethods<T>;
 function alignUp(n: number, align: number): number {
   return (n + align - 1) & ~(align - 1);
 }
-export function alignFields<T extends Record<string, Type>>(
+function alignFields<T extends Record<string, Type>>(
   data: T,
   packed: boolean = false,
 ): { fields: StructureFields<T>; size: number } {
@@ -86,7 +86,7 @@ export function alignFields<T extends Record<string, Type>>(
   return { fields: Object.freeze(fields), size: structSize };
 }
 
-export function defineProxyProperty(
+function defineProxyProperty(
   target: Record<string, any>,
   key: string,
   field: AlignedData,
