@@ -1,5 +1,6 @@
-import { alloc, read, write } from "./memory.js";
-import { sizeof } from "./size.js";
+import { alloc, read, write, sizeof } from "./memory.js";
+import type { PropertyTransformer, Transformers } from "./transformer.js";
+import { applyTransform, type ApplyTransformers } from "./transformer.js";
 import {
   DataType,
   isArrayDataType,
@@ -7,26 +8,37 @@ import {
   type AlignedData,
   type ArrayDataType,
   type BindedType,
-  type DataVale,
+  type DataValue,
   type DomainObject,
   type StructureDefinitionDataType,
   type Type,
 } from "./type.js";
 
-export type StructureFields<T extends DomainObject = DomainObject> = {
+export type StructureFields<T extends DomainObject> = {
   [K in keyof Record<keyof T, Type>]: AlignedData;
 };
-export interface StructureConstructor<T extends DomainObject = DomainObject> {
-  readonly size: number;
-  readonly fields: StructureFields;
+
+interface StructureStaticMethods<T extends DomainObject> {
   /**
    * Copys the contents of the buffer. Returns a new Instance.
    * @param buffer
    */
-  from(buffer: Buffer): Structure<BindedType<T>>;
-  from(buffer: Structure<BindedType<T>>): Structure<BindedType<T>>;
-  toJson(buffer: Buffer): BindedType<T>;
-  new (args: BindedType<T>): Structure<BindedType<T>>;
+  from(buffer: Buffer, offset?: number): Structure<T>;
+  from(
+    structure: Structure<BindedType<T>>,
+    offset?: number,
+    length?: number,
+  ): Structure<T>;
+  toJson(buffer: Buffer): T;
+}
+export interface StructureConstructor<
+  T extends DomainObject = DomainObject,
+> extends StructureStaticMethods<T> {
+  readonly size: number;
+  readonly fields: StructureFields<T>;
+  readonly transform: Transformers<T>;
+
+  new (args: T): Structure<T>;
 }
 
 export interface StructureMethods<T extends DomainObject> {
@@ -34,12 +46,12 @@ export interface StructureMethods<T extends DomainObject> {
    * Copies the contents of the buffer
    * @param buffer
    */
-  copy(buffer: Buffer): void;
+  copy(buffer: Buffer, offset?: number): void;
   /**
    * Copies the contents of the structure buffer
    * @param buffer
    */
-  copy(structure: Structure<T>): void;
+  copy(structure: Structure<T>, offset?: number): void;
   /**
    * Returns the buffer
    */
@@ -54,8 +66,19 @@ export interface StructureMethods<T extends DomainObject> {
   toJson(): T;
 }
 
+export type StructureOptions<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> = TR extends undefined
+  ? { packed?: boolean; tranform?: undefined }
+  : { packed?: boolean; transform?: TR };
+
 export type Structure<T extends DomainObject> = T & StructureMethods<T>;
 
+export type StructureReturn<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> = StructureConstructor<ApplyTransformers<T, BindedType<T>, TR>>;
 function alignUp(n: number, align: number): number {
   return (n + align - 1) & ~(align - 1);
 }
@@ -91,6 +114,7 @@ function defineProxyProperty(
   key: string,
   field: AlignedData,
   buffer: Buffer,
+  transformer?: PropertyTransformer,
   offset: number = 0,
 ): void {
   // console.log("Define property", target, key, field);
@@ -100,9 +124,17 @@ function defineProxyProperty(
     get() {
       // console.log("Get", key, field, isStructField);
       if (isStructField) return target[key];
-      else if (isArrayField)
-        return readArray(field as AlignedData<ArrayDataType>, buffer, offset);
-      return read(field, buffer, offset);
+      else if (isArrayField) {
+        const out = readArray(
+          field as AlignedData<ArrayDataType>,
+          buffer,
+          offset,
+        );
+        return applyTransform(transformer?.output, out);
+      }
+      const out = read(field, buffer, offset);
+
+      return applyTransform(transformer?.output, out);
     },
     set(v) {
       // console.log("Set", key, isStructField);
@@ -110,12 +142,17 @@ function defineProxyProperty(
         return writeStructure(
           field as AlignedData<StructureConstructor>,
           buffer,
-          v,
+          applyTransform(transformer?.input, v),
           offset,
         );
       else if (isArrayField)
-        writeArray(field as AlignedData<ArrayDataType>, v, buffer, offset);
-      else write(field, buffer, v, offset);
+        writeArray(
+          field as AlignedData<ArrayDataType>,
+          applyTransform(transformer?.input, v),
+          buffer,
+          offset,
+        );
+      else write(field, buffer, applyTransform(transformer?.input, v), offset);
     },
   });
 }
@@ -126,23 +163,25 @@ function writeStructure(
   value: any,
   offset: number,
 ): void {
-  // console.log("Write structure", data, offset, value);
+  console.log("Write structure", data, offset, value);
   for (const [k, field] of Object.entries(data.type.fields)) {
+    const transformer = data.type.transform[k];
+    const val = applyTransform(transformer?.input, value[k]);
     if (isStructureDataType(field.type)) {
       writeStructure(
         field as AlignedData<StructureConstructor>,
         buffer,
-        value[k],
+        val,
         offset + data.offset,
       );
     } else if (Array.isArray(field.type)) {
       writeArray(
         field as AlignedData<ArrayDataType>,
-        value[k],
+        val,
         buffer,
         offset + data.offset,
       );
-    } else write(field, buffer, value[k], offset + data.offset);
+    } else write(field, buffer, val, offset + data.offset);
   }
 }
 
@@ -156,7 +195,7 @@ function writeArray(
   const [type, length] = data.type;
   const isStructure = isStructureDataType(type);
   const size = sizeof(type);
-
+  if (arr.length !== length) throw new RangeError("Invalid array length");
   for (let i = 0; i < length; i++) {
     const value = arr[i];
     if (isStructure) {
@@ -201,7 +240,7 @@ function readArray(
   buffer: Buffer,
   offset: number = 0,
   mutable: boolean = true,
-): DataVale {
+): DataValue {
   // console.log("Read array", data, offset);
   const t = [];
   const [type, length] = data.type;
@@ -257,29 +296,47 @@ function readStructure<T extends DomainObject>(
   offset: number = 0,
   mutable: boolean = true,
 ): T {
-  // console.log("readStructure", offset);
+  // console.log("readStructure", data, offset);
   const t: DomainObject = {};
   for (const [k, field] of Object.entries(data.type.fields)) {
-    if (mutable) defineProxyProperty(t, k, field, buffer, data.offset + offset);
+    const transformer = data.type.transform[k];
+    // console.log("Trasnformer", k, transformer);
+    if (mutable)
+      defineProxyProperty(
+        t,
+        k,
+        field,
+        buffer,
+        data.type.transform[k],
+        data.offset + offset,
+      );
     else {
       if (isStructureDataType(field.type)) {
-        t[k] = readStructure(
-          field as AlignedData<StructureConstructor>,
-          buffer,
-          data.offset + offset,
-          mutable,
+        t[k] = applyTransform(
+          transformer?.output,
+          readStructure(
+            field as AlignedData<StructureConstructor>,
+            buffer,
+            data.offset + offset,
+            mutable,
+          ),
         );
-        continue;
+      } else if (isArrayDataType(field.type)) {
+        t[k] = applyTransform(
+          transformer?.output,
+          readArray(
+            field as AlignedData<ArrayDataType>,
+            buffer,
+            data.offset + offset,
+            mutable,
+          ),
+        );
+      } else {
+        t[k] = applyTransform(
+          transformer?.output,
+          read(field, buffer, data.offset + offset),
+        );
       }
-
-      if (isArrayDataType(field.type)) {
-        t[k] = readArray(
-          field as AlignedData<ArrayDataType>,
-          buffer,
-          data.offset + offset,
-          mutable,
-        );
-      } else t[k] = read(field, buffer, data.offset + offset);
     }
   }
   return t as T;
@@ -288,6 +345,7 @@ function readStructure<T extends DomainObject>(
 function construct(
   target: DomainObject,
   fields: { [K: string]: AlignedData },
+  transformers: Transformers<DomainObject>,
   args: { [K: string]: any },
   buffer: Buffer,
   offset: number = 0,
@@ -296,38 +354,59 @@ function construct(
   // console.log("Construct", target, offset);
   for (const [k, field] of Object.entries(fields)) {
     const arg = args[k];
+    const transformer = transformers[k];
+    const val = arg ? applyTransform(transformer?.input, arg) : arg;
     if (writeData) {
       if (isStructureDataType(field.type)) {
         target[k] = {};
         construct(
           target[k],
           field.type.fields,
+          field.type.transform,
           arg ?? {},
           buffer,
           offset + field.offset,
+          writeData,
         );
         continue;
       }
-
       if (Array.isArray(field.type)) {
-        writeArray(
-          field as AlignedData<ArrayDataType>,
-          arg ?? [],
-          buffer,
-          offset,
-        );
+        writeArray(field as AlignedData<ArrayDataType>, val, buffer, offset);
       } else {
-        if (arg) write(field, buffer, arg, offset);
+        if (val) write(field, buffer, val, offset);
       }
+    } else {
+      if (isStructureDataType(field.type)) {
+        target[k] = {};
+        construct(
+          target[k],
+          field.type.fields,
+          field.type.transform,
+          val ?? {},
+          buffer,
+          offset + field.offset,
+          writeData,
+        );
+      } else defineProxyProperty(target, k, field, buffer, transformer, offset);
     }
-    defineProxyProperty(target, k, field, buffer, offset);
   }
 }
 
 export function structure<T extends DomainObject>(
   data: StructureDefinitionDataType<T>,
-  opts?: { packed?: boolean },
-): StructureConstructor<T> {
+  opts?: StructureOptions<T, undefined>,
+): StructureConstructor<BindedType<T>>;
+
+export function structure<T extends DomainObject, TR extends Transformers<T>>(
+  data: StructureDefinitionDataType<T>,
+  opts?: StructureOptions<T, TR>,
+): StructureReturn<T, TR>;
+
+export function structure<T extends DomainObject>(
+  data: StructureDefinitionDataType<T>,
+  opts?: StructureOptions<T, Transformers<T>>,
+): any {
+  const transformers = (opts as any)?.transform ?? ({} as Transformers<T>);
   const { fields, size } = alignFields(
     data as Record<keyof T, DataType>,
     opts?.packed,
@@ -335,25 +414,34 @@ export function structure<T extends DomainObject>(
   let writeData = true;
   const t = class implements StructureMethods<T> {
     public static readonly fields = fields;
+    public static readonly transform: Transformers<T> = transformers;
     public static readonly size: number = size;
     private readonly __buff__: Buffer = alloc(size);
-    public static from(buffer: Buffer): Structure<BindedType<T>>;
-    public static from(structure: Structure<T>): Structure<BindedType<T>>;
-    public static from(arg: any): Structure<BindedType<T>> {
+    public static from(
+      buffer: Buffer,
+      offset?: number,
+    ): Structure<BindedType<T>>;
+    public static from(
+      structure: Structure<T>,
+      offset?: number,
+    ): Structure<BindedType<T>>;
+    public static from(arg: any, offset: number = 0): Structure<BindedType<T>> {
       writeData = false;
+      const bsize = arg instanceof Buffer ? arg.length : arg.size;
+      if (size > bsize) throw new Error("Invalid buffer size");
       if (arg instanceof Buffer) {
-        if (arg.length !== size) throw new Error("Invalid buffer size");
         const inst = new this({} as any);
-        arg.copy(inst.data());
+        arg.copy(inst.data(), 0, offset, offset + size);
 
         return inst as Structure<BindedType<T>>;
       } else {
         const inst = new this({} as any);
-        arg.data().copy(inst.data());
+        arg.data().copy(inst.data(), 0, offset, offset + size);
         return inst as Structure<BindedType<T>>;
       }
     }
     public static toJson(buffer: Buffer): BindedType<T> {
+      if (buffer.length < size) throw new Error("Invalid buffer size");
       return readStructure<T>(
         {
           type: this as StructureConstructor,
@@ -365,17 +453,17 @@ export function structure<T extends DomainObject>(
         false,
       );
     }
-    constructor(args: BindedType<T>) {
-      construct(this, fields, args, this.__buff__, 0, writeData);
+    constructor(args: T) {
+      construct(this, fields, transformers, args, this.__buff__, 0, writeData);
       writeData = true;
     }
-    public copy(buffer: Buffer): void;
-    public copy(structure: Structure<T>): void;
-    public copy(target: any): void {
+    public copy(buffer: Buffer, offset?: number): void;
+    public copy(structure: Structure<T>, offset?: number): void;
+    public copy(target: any, offset: number = 0): void {
       if (target instanceof Buffer) {
-        target.copy(this.__buff__);
+        target.copy(this.__buff__, 0, offset, offset + size);
         return;
-      } else target.data().copy(this.__buff__);
+      } else target.data().copy(this.__buff__, 0, offset, offset + size);
     }
     public data() {
       return this.__buff__;

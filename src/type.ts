@@ -45,7 +45,7 @@ export type Type<D extends DomainObject = DomainObject> =
   | DataType
   | ArrayDataType
   | StructureConstructor<D>;
-export type DataVale = number | Array<number> | bigint | object;
+export type DataValue = number | Array<number> | bigint | object;
 
 export type BindedType<T extends Record<string, any>> = {
   [K in keyof T]: T[K] extends string

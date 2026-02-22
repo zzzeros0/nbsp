@@ -33,16 +33,33 @@ interface Packet {
   content: string;
 } // domain Packet
 
-const AckPacketStructure = structure<AckPacket>(
+// Transformers
+
+// Transforms string <-> number[]
+const stringTransform = {
+  input: [(data: string) => toUint8Array(data)],
+  output: [(data: number[]) => toString(data)],
+};
+
+// Transforms hex string <-> hex number[]
+const hexStringTransform = {
+  input: [(data: string) => toUint8Array(data, true)],
+  output: [(data: number[]) => toString(data, true)],
+};
+
+const AckPacketStructure = structure<AckPacket, Transformers<AckPacket>>(
   {
     id: charDataType(6),
   },
   {
     packed: true,
+    transform: {
+      id: hexStringTransform,
+    },
   },
-);
+); // AckPacketStructure Constructor (class)
 
-const PacketStructure = structure<Packet>(
+const PacketStructure = structure<Packet, Transformers<Packet>>(
   {
     header: DataType.UINT32LE,
     id: charDataType(6),
@@ -51,8 +68,13 @@ const PacketStructure = structure<Packet>(
   },
   {
     packed: true,
+    transform: {
+      id: hexStringTransform,
+      method: stringTransform,
+      content: stringTransform,
+    },
   },
-);
+); // PacketStructure Constructor (class)
 
 console.log(AckPacketStructure.size); // 6 (Unpacked: 10)
 console.log(PacketStructure.size); // 78 (Unpacked: 128)
@@ -60,20 +82,38 @@ console.log(PacketStructure.size); // 78 (Unpacked: 128)
 mqttClient.on("message", (topic, msg) => {
   const packet = PacketStructure.from(msg);
 
-  processMessage(
-    topic,
-    toString(packet.id),
-    toString(packet.method),
-    toString(packet.content),
-  ).then(() => {
-    const ackMessage = new AckPacketStructure({
-      id: packet.id,
-    });
+  processMessage(topic, packet.id, packet.method, packet.content).then(() => {
+    const ackMessage = AckPacketStructure.from(msg, sizeof(DataType.UINT32LE)); // Offset the 'header' property
 
     mqttClient.publish("ack", ackMessage.data());
   });
 });
 ```
+
+### Structure Constructor methods
+
+| Method | Description                                                       | Arguments                                          | Returned type  |
+| ------ | ----------------------------------------------------------------- | -------------------------------------------------- | -------------- |
+| from   | Creates a new instance and copies the buffer content from target. | `(target: Structure \| Buffer,offset: number = 0)` | `Structure<T>` |
+| toJson | Creates a plain object, resolving with the data of the buffer.    |                                                    | T              |
+
+### Structure methods
+
+| Method | Description                            | Arguments                                           | Returned type |
+| ------ | -------------------------------------- | --------------------------------------------------- | ------------- |
+| data   | Returns the internal buffer (no copy). |                                                     | `boolean`     |
+| reset  | Zero the internal buffer content.      |                                                     | `void`        |
+| toJson | Returns a plain object.                |                                                     | `T`           |
+| copy   | Copies the buffer content from target. | `(target: Buffer \| Structure, offset: number = 0)` | `void`        |
+
+### Structure Options
+
+Second argument in `structure` function.
+
+| Property  | Description                                                                                                                                                | Type              | Default |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------- |
+| packed    | When false, fields of the structure are aligned or padded. This is really important especially for binary communications, improving performance and usage. | `boolean`         | `false` |
+| transform | An object that contains keys from the domain object. Transforms the data obtained from the buffer data.                                                    | `Transformers<T>` | `{}`    |
 
 ## Usage
 
@@ -111,103 +151,52 @@ const person2 = PersonStructure.from(Buffer.from("526f73655a000000", "hex"));
 console.log("Name: %s, age: %d", toString(person2.name), person2.age); // Name: Rose, age: 90
 
 console.log(person2.data()); //  <Buffer 52 6f 73 65 5a 00 00 00>
-```
 
-4. You can create a plain object using `toJson` instance or static methods:
-
-```ts
 console.log(person2.toJson()); // { name: [ 82, 111, 115, 101 ], age: 90 }
 
 const person3 = PersonStructure.toJson(Buffer.from("4a616b655a000000", "hex"));
 
 console.log("Name: %s, age: %d", toString(person3.name), person3.age); // Name: Jake, age: 90
-```
 
-### Packing
+// Transformers help to transform data.
+// When a property has transformers, its exposed TypeScript type becomes the transformed type instead of the raw BindedType<T>.
+// You can have multiple transforms in input/output; each one will receive the last transformed value.
 
-When creating a `Structure`, you can provide the argument `packed` (default is `false`):
-
-```ts
-const PacketStructure = structure<Packet>(
+const PersonStructure = structure<Person, { name: PropertyTransform }>(
   {
-    header: DataType.UINT32LE,
-    id: charDataType(6),
-    content: charDataType(64),
+    age: DataType.UINT8,
+    name: charDataType(4),
   },
   {
-    packed: true,
+    transform: {
+      name: {
+        // Executed when data is written to the buffer
+        input: [(data: string) => toUint8Array(data)],
+        // Executed when data is retrieved from the buffer
+        output: [(data: number[]) => toString(data)],
+      },
+    },
   },
 );
-```
-
-When `packed` is `true`, no padding or alignment will be applied to the fields. This is really important especially for binary communications, improving performance and usage.
-
-```ts
-console.log(PersonStructure.size); // Unpacked: 8 bytes
-console.log(PersonStructure.size); // Packed: 5 bytes
-```
-
-### Strings
-
-NBSP does not store strings dynamically.
-Strings are represented as fixed-length arrays of `UINT8`. You can use `charDataType` as a shorthand:
-
-```ts
-charDataType(6); // returns [DataType.UINT8, 6]
-```
-
-This is intentional and ensures:
-
-- Deterministic payload size
-- Protocol compatibility
-- Zero dynamic allocation
-
-### Working with hex
-
-You can serialize/retrieve hex data:
-
-```ts
-interface User {
-  id: string;
-  role: number;
-} // domain Person
-
-const UserStructure = structure<User>({
-  id: charDataType(4),
-  role: DataType.UINT8,
+const person = new PersonStructure({
+  age: 24,
+  name: "Dave", // Input transformer
 });
-
-const instance = new UserStructure({
-  id: toUint8Array("1a2b4c6d", true), // Transform to hex array
-  role: 2,
-});
-// HEX string length 8 -> HEX array length 4
-
-console.log(instance.name); // Prints [ 26, 43, 76, 109 ]
-console.log(toString(instance.name, true)); // "1a2b4c6d"
+person.name = "Jack"; // Input transformer
+console.log(person.name); // "Jack", output transformer
 ```
 
-### Arrays
+### Arrays & Nesting
 
 `Arrays` are defined with a `type` and a fixed `length` of items:
 
 ```ts
-interface Person {
-  name: string;
-} // domain Person
-
 const PersonStructure = structure<Person>({
-  name: charDataType(4), // [ DataType.UINT8, 4 ]
-});
-
-const person = new PersonStructure({
-  name: toUint8Array("Jake"),
+  name: [DataType.UINT8, 4], // or charDataType(4)
 });
 ```
 
-This specifies that there will be `4` items in this field, each of them of type `DataType.UINT8` (strings will always be stored as arrays of `DataType.UINT8`).
-
-### Nested Structures
+> Strings are represented as a fixed array of `UINT8` if no transformer was applied for that property.
 
 You can nest `Structures`:
 
@@ -263,13 +252,13 @@ const groupInstance = new GroupStructure({
     // DO NOT use PersonStructure constructor
     // it will cause unnecessary allocations
     {
-      name: toUint8Array("Jack"),
+      name: "Jack",
     },
     {
-      name: toUint8Array("Rose"),
+      name: "Rose",
     },
     {
-      name: toUint8Array("Dave"),
+      name: "Dave",
     },
     ...
   ],
@@ -281,38 +270,6 @@ console.log(groupInstance.people); // Array<100> [ { name: [Getter/Setter] }, ..
 > **Important**
 >
 > Structures must be instantiated with plain objects when are nested, `do not` use the `Structure's constructor`; doing so will make unnecessary allocations.
-
-### Buffer and copying
-
-You can access the `buffer` of the `instance` with `data` method:
-
-```ts
-instance.data(); // Returns the internal Buffer (no copy)
-```
-
-You can reset the `buffer` of the `instance` with `reset` method:
-
-```ts
-instance.reset(); // Resets the internal Buffer (0)
-```
-
-You can `copy` the data from other `instance` or `buffer`:
-
-```ts
-instance.copy(instanceOrBuffer);
-```
-
-You can create a `new instance` of the `Structure`, copying the data `from` other `buffer` or `instance`:
-
-```ts
-const copiedInstance = PersonStructure.from(instanceOrBuffer);
-```
-
-> **Important**
->
-> Buffers must be the same size when copying.
->
-> Each instance has its own buffer.
 
 ### JSON
 
@@ -330,11 +287,17 @@ PersonStructure.toJson(Buffer.from("4a616b655a000000", "hex")); // { name: [ 68,
 
 > **Important**
 >
-> Strings are still represented as numeric arrays in JSON output.
+> Transformers will also run when serializing JSON.
+
+> Prefer the static `toJson` when working with raw buffers; there's no point on doing this:
+>
+> ```ts
+> PersonStructure.toJson(personInstance.data());
+> ```
 
 ### Endianness
 
-`DataType` difference between `LE` and `BE` types:
+Data types defined in the enum `DataType` difference between `LE` and `BE` types:
 
 ```ts
 structure({
@@ -352,7 +315,7 @@ This means that some decimal values cannot be represented exactly in binary.
 
 FLOAT32 is a 32-bit single-precision IEEE-754 float.
 
-The decimal number 0.4 cannot be represented exactly using a finite binary fraction, so the closest representable value is stored instead.
+Some decimal numbers, like 0.4, cannot be represented exactly using a finite binary fraction, so the closest representable value is stored instead.
 
 Example:
 
