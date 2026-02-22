@@ -19,6 +19,7 @@ export {
   type StructureArrayDataType,
   type StructureDefinitionDataType,
   type Type,
+  type bytes,
 } from "./type.js";
 export {
   type Transformer,

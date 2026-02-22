@@ -38,13 +38,13 @@ interface Packet {
 // Transforms string <-> number[]
 const stringTransform = {
   input: [(data: string) => toUint8Array(data)],
-  output: [(data: number[]) => toString(data)],
+  output: [(data: bytes) => toString(data)],
 };
 
 // Transforms hex string <-> hex number[]
 const hexStringTransform = {
   input: [(data: string) => toUint8Array(data, true)],
-  output: [(data: number[]) => toString(data, true)],
+  output: [(data: bytes) => toString(data, true)],
 };
 
 const AckPacketStructure = structure<AckPacket, Transformers<AckPacket>>(
@@ -173,7 +173,7 @@ const PersonStructure = structure<Person, { name: PropertyTransform }>(
         // Executed when data is written to the buffer
         input: [(data: string) => toUint8Array(data)],
         // Executed when data is retrieved from the buffer
-        output: [(data: number[]) => toString(data)],
+        output: [(data: bytes) => toString(data)],
       },
     },
   },

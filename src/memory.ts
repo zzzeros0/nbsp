@@ -3,6 +3,7 @@ import {
   DataType,
   type AlignedData,
   type ArrayDataType,
+  type bytes,
   type Type,
 } from "./type.js";
 
@@ -226,7 +227,7 @@ export function sizeof(type: Type): number {
         : getStructureDataSize(type);
 }
 
-function hexToBytes(hex: string): number[] {
+function hexToBytes(hex: string): bytes {
   let bytes = [];
   for (let c = 0; c < hex.length; c += 2)
     bytes.push(parseInt(hex.slice(c, c + 2), 16));
@@ -234,7 +235,7 @@ function hexToBytes(hex: string): number[] {
   return bytes;
 }
 
-function bytesToHex(bytes: number[]) {
+function bytesToHex(bytes: bytes) {
   let hex = [];
   for (let i = 0; i < bytes.length; i++) {
     const byte = bytes[i];
@@ -247,12 +248,12 @@ function bytesToHex(bytes: number[]) {
   return hex.join("");
 }
 
-export function toUint8Array(s: string, hex: boolean = false): number[] {
+export function toUint8Array(s: string, hex: boolean = false): bytes {
   if (hex) return hexToBytes(s);
   if (!encoder) encoder = new TextEncoder(); // UTF-8 por defecto
   return Array.from(encoder.encode(s));
 }
-export function toString(n: number[], hex: boolean = false): string {
+export function toString(n: bytes, hex: boolean = false): string {
   // console.log("String", n);
   if (hex) return bytesToHex(n);
   if (!decoder) decoder = new TextDecoder();

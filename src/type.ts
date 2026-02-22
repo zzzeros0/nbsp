@@ -1,5 +1,7 @@
 import { type StructureConstructor } from "./structure.js";
 
+export type bytes = number[];
+
 export enum DataType {
   INT8 = 0,
   UINT8,
@@ -45,11 +47,11 @@ export type Type<D extends DomainObject = DomainObject> =
   | DataType
   | ArrayDataType
   | StructureConstructor<D>;
-export type DataValue = number | Array<number> | bigint | object;
+export type DataValue = number | bytes | bigint | object;
 
 export type BindedType<T extends Record<string, any>> = {
   [K in keyof T]: T[K] extends string
-    ? number[]
+    ? bytes
     : T[K] extends DomainObject
       ? BindedType<T[K]>
       : T[K];

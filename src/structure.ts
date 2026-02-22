@@ -24,18 +24,35 @@ interface StructureStaticMethods<T extends DomainObject> {
    * @param buffer
    */
   from(buffer: Buffer, offset?: number): Structure<T>;
+  /**
+   * Copys the contents of the instance's buffer. Returns a new instance.
+   * @param buffer
+   */
   from(
     structure: Structure<BindedType<T>>,
     offset?: number,
     length?: number,
   ): Structure<T>;
+  /**
+   * Serializes the buffer directly to a plain object
+   * @param buffer
+   */
   toJson(buffer: Buffer): T;
 }
 export interface StructureConstructor<
   T extends DomainObject = DomainObject,
 > extends StructureStaticMethods<T> {
+  /**
+   * The size of the structure
+   */
   readonly size: number;
+  /**
+   * The fields of the structure
+   */
   readonly fields: StructureFields<T>;
+  /**
+   * The transformers
+   */
   readonly transform: Transformers<T>;
 
   new (args: T): Structure<T>;
@@ -117,12 +134,10 @@ function defineProxyProperty(
   transformer?: PropertyTransformer,
   offset: number = 0,
 ): void {
-  // console.log("Define property", target, key, field);
   const isStructField = isStructureDataType(field.type);
   const isArrayField = isArrayDataType(field.type);
   Object.defineProperty(target, key, {
     get() {
-      // console.log("Get", key, field, isStructField);
       if (isStructField) return target[key];
       else if (isArrayField) {
         const out = readArray(
@@ -137,7 +152,6 @@ function defineProxyProperty(
       return applyTransform(transformer?.output, out);
     },
     set(v) {
-      // console.log("Set", key, isStructField);
       if (isStructField)
         return writeStructure(
           field as AlignedData<StructureConstructor>,
@@ -191,7 +205,6 @@ function writeArray(
   buffer: Buffer,
   offset: number,
 ): void {
-  // console.log("Write array", data, offset, arr);
   const [type, length] = data.type;
   const isStructure = isStructureDataType(type);
   const size = sizeof(type);
@@ -241,7 +254,6 @@ function readArray(
   offset: number = 0,
   mutable: boolean = true,
 ): DataValue {
-  // console.log("Read array", data, offset);
   const t = [];
   const [type, length] = data.type;
   const size = sizeof(type);
@@ -296,11 +308,9 @@ function readStructure<T extends DomainObject>(
   offset: number = 0,
   mutable: boolean = true,
 ): T {
-  // console.log("readStructure", data, offset);
   const t: DomainObject = {};
   for (const [k, field] of Object.entries(data.type.fields)) {
     const transformer = data.type.transform[k];
-    // console.log("Trasnformer", k, transformer);
     if (mutable)
       defineProxyProperty(
         t,
@@ -351,7 +361,6 @@ function construct(
   offset: number = 0,
   writeData: boolean = true,
 ) {
-  // console.log("Construct", target, offset);
   for (const [k, field] of Object.entries(fields)) {
     const arg = args[k];
     const transformer = transformers[k];
@@ -430,12 +439,12 @@ export function structure<T extends DomainObject>(
       const bsize = arg instanceof Buffer ? arg.length : arg.size;
       if (size > bsize) throw new Error("Invalid buffer size");
       if (arg instanceof Buffer) {
-        const inst = new this({} as any);
+        const inst = new this({} as T);
         arg.copy(inst.data(), 0, offset, offset + size);
 
         return inst as Structure<BindedType<T>>;
       } else {
-        const inst = new this({} as any);
+        const inst = new this({} as T);
         arg.data().copy(inst.data(), 0, offset, offset + size);
         return inst as Structure<BindedType<T>>;
       }
