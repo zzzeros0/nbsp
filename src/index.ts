@@ -1,11 +1,11 @@
-export { toString, toUint8Array, sizeof } from "./memory.js";
+export { toString, toBytes, sizeof } from "./memory.js";
 export {
-  structure,
-  type Structure,
-  type StructureConstructor,
-  type StructureFields,
-  type StructureMethods,
-  type StructureReturn,
+  struct,
+  type Struct,
+  type StructConstructor,
+  type StructFields,
+  type StructMethods,
+  type StructReturn,
 } from "./structure.js";
 export {
   charDataType,
@@ -16,16 +16,15 @@ export {
   type DataValue,
   type DomainObject,
   type NumericArrayDataType,
-  type StructureArrayDataType,
-  type StructureDefinitionDataType,
+  type StructArrayDataType,
+  type StructDefinitionDataType,
   type Type,
+  type byte,
   type bytes,
 } from "./type.js";
 export {
   type Transformer,
   type Transformers,
   type ApplyTransformers,
-  type InputTransformer,
-  type OuputTransformer,
   type PropertyTransformer,
 } from "./transformer.js";

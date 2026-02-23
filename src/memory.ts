@@ -1,15 +1,16 @@
-import type { StructureConstructor } from "./structure.js";
+import type { StructConstructor } from "./structure.js";
 import {
   DataType,
   type AlignedData,
   type ArrayDataType,
+  type byte,
   type bytes,
   type Type,
 } from "./type.js";
 
 let encoder: TextEncoder, decoder: TextDecoder;
 
-function assertInteger(value: number, min: number, max: number, type: string) {
+function assertInteger(value: byte, min: byte, max: byte, type: string) {
   if (!Number.isInteger(value)) {
     throw new Error(`${type}: value is not an integer`);
   }
@@ -18,7 +19,7 @@ function assertInteger(value: number, min: number, max: number, type: string) {
   }
 }
 
-function assertFinite(value: number, type: string) {
+function assertFinite(value: byte, type: string) {
   if (!Number.isFinite(value)) {
     throw new Error(`${type}: value is not finite`);
   }
@@ -35,14 +36,11 @@ function assertBigIntRange(
   }
 }
 
-export function alloc(s: number) {
-  // console.log("Alloc", s);
+export function alloc(s: byte) {
   return Buffer.alloc(s);
 }
 
-export function read(data: AlignedData, buffer: Buffer, offset: number) {
-  // console.log("read", data, offset + data.offset);
-  // if (typeof data.type === "number") {
+export function read(data: AlignedData, buffer: Buffer, offset: byte) {
   switch (data.type) {
     case DataType.INT8:
       return buffer.readInt8(offset + data.offset);
@@ -88,13 +86,9 @@ export function read(data: AlignedData, buffer: Buffer, offset: number) {
 export function write(
   data: AlignedData,
   buffer: Buffer,
-  value: number,
-  offset: number,
-) {
-  // console.log("Write", data.offset + offset, value);
-  // if (typeof data.type === "number") {
-  //   if (Array.isArray(value) || typeof value !== "number")
-  //     throw new Error("Invalid value");
+  value: byte,
+  offset: byte,
+): void {
   switch (data.type) {
     case DataType.INT8:
       assertInteger(value, -128, 127, "INT8");
@@ -181,7 +175,7 @@ export function write(
   }
 }
 
-function getDataTypeSize(type: DataType): number {
+function getDataTypeSize(type: DataType): byte {
   switch (type) {
     case DataType.INT8:
     case DataType.UINT8:
@@ -210,14 +204,14 @@ function getDataTypeSize(type: DataType): number {
   }
 }
 
-function getStructureDataSize(structure: StructureConstructor): number {
+function getStructureDataSize(structure: StructConstructor): byte {
   return structure.size;
 }
 
-function getArrrayDataSize(type: ArrayDataType): number {
+function getArrrayDataSize(type: ArrayDataType): byte {
   return sizeof(type[0]) * type[1];
 }
-export function sizeof(type: Type): number {
+export function sizeof(type: Type): byte {
   return typeof type === "number"
     ? getDataTypeSize(type)
     : typeof type === "string"
@@ -236,7 +230,7 @@ function hexToBytes(hex: string): bytes {
 }
 
 function bytesToHex(bytes: bytes) {
-  let hex = [];
+  const hex = [];
   for (let i = 0; i < bytes.length; i++) {
     const byte = bytes[i];
     if (byte == undefined) throw new Error("Invalid byte");
@@ -244,11 +238,10 @@ function bytesToHex(bytes: bytes) {
     hex.push((current >>> 4).toString(16));
     hex.push((current & 0xf).toString(16));
   }
-
   return hex.join("");
 }
 
-export function toUint8Array(s: string, hex: boolean = false): bytes {
+export function toBytes(s: string, hex: boolean = false): bytes {
   if (hex) return hexToBytes(s);
   if (!encoder) encoder = new TextEncoder(); // UTF-8 por defecto
   return Array.from(encoder.encode(s));

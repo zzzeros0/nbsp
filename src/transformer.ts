@@ -2,8 +2,6 @@ import type { BindedType, DataValue, DomainObject } from "./type.js";
 
 export type Transformer<T, R> = (data: T) => R;
 
-export type InputTransformer = Transformer<any, any>;
-export type OuputTransformer<T> = Transformer<any, T>;
 export interface PropertyTransformer {
   readonly input?: Transformer<any, any>[];
   readonly output?: Transformer<any, any>[];

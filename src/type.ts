@@ -1,6 +1,6 @@
-import { type StructureConstructor } from "./structure.js";
-
-export type bytes = number[];
+import { type StructConstructor } from "./structure.js";
+export type byte = number;
+export type bytes = byte[];
 
 export enum DataType {
   INT8 = 0,
@@ -27,27 +27,25 @@ export type BigIntDataType =
   | DataType.INT64BE
   | DataType.UINT64LE
   | DataType.UINT64BE;
-export type NumericArrayDataType = [type: DataType, size: number];
-export type StructureArrayDataType<T extends Record<string, any>> = [
-  type: StructureConstructor<T>,
-  size: number,
+export type NumericArrayDataType = [type: DataType, size: byte];
+export type StructArrayDataType<T extends Record<string, any>> = [
+  type: StructConstructor<T>,
+  size: byte,
 ];
 
 export type DomainObject = Record<string, any>;
-export type InferArray<T extends any> = T extends number
+export type InferArray<T extends any> = T extends byte
   ? NumericArrayDataType
   : T extends DomainObject
-    ? StructureArrayDataType<T>
+    ? StructArrayDataType<T>
     : never;
 export type ArrayDataType =
   | NumericArrayDataType
-  | StructureArrayDataType<DomainObject>;
+  | StructArrayDataType<DomainObject>;
 
-export type Type<D extends DomainObject = DomainObject> =
-  | DataType
-  | ArrayDataType
-  | StructureConstructor<D>;
-export type DataValue = number | bytes | bigint | object;
+export type Type = DataType | ArrayDataType | StructConstructor<any>;
+
+export type DataValue = byte | bytes | bigint | object;
 
 export type BindedType<T extends Record<string, any>> = {
   [K in keyof T]: T[K] extends string
@@ -56,31 +54,31 @@ export type BindedType<T extends Record<string, any>> = {
       ? BindedType<T[K]>
       : T[K];
 };
-export type StructureDefinitionDataType<T extends DomainObject> = {
+export type StructDefinitionDataType<T extends DomainObject> = {
   [K in keyof T]: T[K] extends readonly (infer P)[]
     ? InferArray<P>
-    : T[K] extends number
+    : T[K] extends byte
       ? DataType
       : T[K] extends bigint
         ? BigIntDataType
         : T[K] extends string
           ? NumericArrayDataType
           : T[K] extends DomainObject
-            ? StructureConstructor<T[K]>
+            ? StructConstructor<T[K]>
             : never;
 };
 export interface AlignedData<T extends Type = Type> {
   readonly type: T;
-  readonly offset: number;
-  readonly size: number;
+  readonly offset: byte;
+  readonly size: byte;
 }
-export function isStructureDataType(t: Type): t is StructureConstructor {
+export function isStructDataType(t: Type): t is StructConstructor {
   return typeof t === "function";
 }
 
 export function isArrayDataType(t: Type): t is ArrayDataType {
   return Array.isArray(t);
 }
-export function charDataType(length: number): NumericArrayDataType {
+export function charDataType(length: byte): NumericArrayDataType {
   return [DataType.UINT8, length];
 }
