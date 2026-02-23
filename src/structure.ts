@@ -19,10 +19,12 @@ export type StructFields<T extends DomainObject> = {
   [K in keyof Record<keyof T, Type>]: AlignedData;
 };
 
-type InferedStruct<
-  T extends DomainObject,
-  TR extends Transformers<T> | undefined,
-> = TR extends undefined ? Struct<BindedType<T>, TR> : Struct<T, TR>;
+// type InferedStruct<
+//   T extends DomainObject,
+//   TR extends Transformers<T> | undefined,
+// > = TR extends undefined
+//   ? Struct<ApplyTransformers<T, BindedType<T>, TR>, TR>
+//   : Struct<T, undefined>;
 type InferedDomainObject<
   T extends DomainObject,
   TR extends Transformers<T> | undefined,
@@ -36,23 +38,19 @@ interface StructStaticMethods<
    * Copys the contents of the buffer. Returns a new Instance.
    * @param buffer
    */
-  from(buffer: Buffer, offset?: byte): InferedStruct<T, TR>;
+  from(buffer: Buffer, offset?: byte): Struct<T, TR>;
   /**
    * Copys the contents of the instance's buffer. Returns a new instance.
    * @param buffer
    */
-  from(
-    struct: InferedStruct<T, TR>,
-    offset?: byte,
-    length?: byte,
-  ): InferedStruct<T, TR>;
+  from(struct: Struct<T, TR>, offset?: byte, length?: byte): Struct<T, TR>;
   /**
    * Serializes the buffer directly to a plain object
    * @param buffer
    */
   toJson(buffer: Buffer): InferedDomainObject<T, TR>;
 
-  partial(args?: Partial<T>): InferedStruct<T, TR>;
+  partial(args?: Partial<T>): Struct<T, TR>;
 }
 export interface StructConstructor<
   T extends DomainObject = DomainObject,
@@ -95,7 +93,7 @@ export interface StructMethods<
    * @param offset
    * @param size Defaults to struct.size
    */
-  copy(struct: InferedStruct<T, TR>, offset?: byte, size?: byte): void;
+  copy(struct: Struct<T, TR>, offset?: byte, size?: byte): void;
 
   /**
    * Sets the contents of the buffer to 0
@@ -453,12 +451,9 @@ export function struct<
     public static readonly transform: Transformers<T> = transformers;
     public static readonly size: byte = size;
     private readonly __buff__: Buffer = alloc(size);
-    public static from(buffer: Buffer, offset?: byte): InferedStruct<T, TR>;
-    public static from(
-      struct: InferedStruct<T, TR>,
-      offset?: byte,
-    ): InferedStruct<T, TR>;
-    public static from(arg: any, offset: byte = 0): InferedStruct<T, TR> {
+    public static from(buffer: Buffer, offset?: byte): Struct<T, TR>;
+    public static from(struct: Struct<T, TR>, offset?: byte): Struct<T, TR>;
+    public static from(arg: any, offset: byte = 0): Struct<T, TR> {
       writeData = false;
 
       const source: Buffer = arg instanceof Buffer ? arg : arg.data();
@@ -467,7 +462,7 @@ export function struct<
       const inst = new this({} as T);
 
       source.copy(inst.data(), offset, 0, size);
-      return inst as unknown as InferedStruct<T, TR>;
+      return inst as unknown as Struct<T, TR>;
     }
     public static toJson(buffer: Buffer): InferedDomainObject<T, TR> {
       if (buffer.length < size) throw new Error("Invalid buffer size");
@@ -482,7 +477,7 @@ export function struct<
         false,
       );
     }
-    public static partial(args?: Partial<T>): InferedStruct<T, TR> {
+    public static partial(args?: Partial<T>): Struct<T, TR> {
       writeData = true;
       const targs = args ?? {};
       return new this(targs as T) as any;
@@ -492,7 +487,7 @@ export function struct<
       writeData = true;
     }
     public copy(buffer: Buffer, offset?: byte, size?: byte): void;
-    public copy(struct: InferedStruct<T, TR>, offset?: byte, size?: byte): void;
+    public copy(struct: Struct<T, TR>, offset?: byte, size?: byte): void;
     public copy(target: any, offset: byte = 0, s: byte = 0): void {
       const source: Buffer = target instanceof Buffer ? target : target.data();
       const length = source.length;

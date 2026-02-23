@@ -27,4 +27,5 @@ export {
   type Transformers,
   type ApplyTransformers,
   type PropertyTransformer,
+  type PickTransformers,
 } from "./transformer.js";

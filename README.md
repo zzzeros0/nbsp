@@ -157,9 +157,13 @@ const person3 = PersonStruct.toJson(Buffer.from("5a0000004a616b65", "hex"));
 console.log("Name: %s, age: %d", toString(person3.name), person3.age); // Name: Jake, age: 90
 ```
 
-Transformers help to transform data.
+Transformers help to transform data. The second generic argument provided to `struct` defines the properties to be transformed.
 When a property has transformers, its exposed TypeScript type becomes the transformed type instead of the raw BindedType<T>.
 You can have multiple transforms in input/output; each one will receive the last transformed value.
+
+Types:
+
+- `PickTransformers<DomainObject, keyof DomainObject>`
 
 ```ts
 const PersonStruct = struct<Person, { name: PropertyTransform }>(

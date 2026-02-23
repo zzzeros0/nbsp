@@ -50,9 +50,11 @@ export type DataValue = byte | bytes | bigint | object;
 export type BindedType<T extends Record<string, any>> = {
   [K in keyof T]: T[K] extends string
     ? bytes
-    : T[K] extends DomainObject
-      ? BindedType<T[K]>
-      : T[K];
+    : T[K] extends boolean
+      ? byte
+      : T[K] extends DomainObject
+        ? BindedType<T[K]>
+        : T[K];
 };
 export type StructDefinitionDataType<T extends DomainObject> = {
   [K in keyof T]: T[K] extends readonly (infer P)[]
@@ -63,9 +65,11 @@ export type StructDefinitionDataType<T extends DomainObject> = {
         ? BigIntDataType
         : T[K] extends string
           ? NumericArrayDataType
-          : T[K] extends DomainObject
-            ? StructConstructor<T[K]>
-            : never;
+          : T[K] extends boolean
+            ? DataType.UINT8
+            : T[K] extends DomainObject
+              ? StructConstructor<T[K]>
+              : never;
 };
 export interface AlignedData<T extends Type = Type> {
   readonly type: T;

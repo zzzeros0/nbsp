@@ -10,6 +10,11 @@ export type Transformers<T extends DomainObject> = Partial<{
   [K in keyof T]: PropertyTransformer;
 }>;
 
+export type PickTransformers<
+  T extends DomainObject,
+  K extends keyof T,
+> = Record<K, PropertyTransformer>;
+
 export type ApplyTransformers<
   T extends DomainObject,
   B extends BindedType<T>,
