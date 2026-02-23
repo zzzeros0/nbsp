@@ -19,26 +19,45 @@ export type StructFields<T extends DomainObject> = {
   [K in keyof Record<keyof T, Type>]: AlignedData;
 };
 
-interface StructStaticMethods<T extends DomainObject> {
+type InferedStruct<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> = TR extends undefined ? Struct<BindedType<T>, TR> : Struct<T, TR>;
+type InferedDomainObject<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> = TR extends undefined ? BindedType<T> : T;
+
+interface StructStaticMethods<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined = undefined,
+> {
   /**
    * Copys the contents of the buffer. Returns a new Instance.
    * @param buffer
    */
-  from(buffer: Buffer, offset?: byte): Struct<T>;
+  from(buffer: Buffer, offset?: byte): InferedStruct<T, TR>;
   /**
    * Copys the contents of the instance's buffer. Returns a new instance.
    * @param buffer
    */
-  from(struct: Struct<BindedType<T>>, offset?: byte, length?: byte): Struct<T>;
+  from(
+    struct: InferedStruct<T, TR>,
+    offset?: byte,
+    length?: byte,
+  ): InferedStruct<T, TR>;
   /**
    * Serializes the buffer directly to a plain object
    * @param buffer
    */
-  toJson(buffer: Buffer): T;
+  toJson(buffer: Buffer): InferedDomainObject<T, TR>;
+
+  partial(args?: Partial<T>): InferedStruct<T, TR>;
 }
 export interface StructConstructor<
   T extends DomainObject = DomainObject,
-> extends StructStaticMethods<T> {
+  TR extends Transformers<T> | undefined = undefined,
+> extends StructStaticMethods<T, TR> {
   /**
    * The size of the struct
    */
@@ -52,24 +71,31 @@ export interface StructConstructor<
    */
   readonly transform: Transformers<T>;
 
-  new (args: T): Struct<T>;
+  new (args: T): Struct<T, TR>;
 }
 
-export interface StructMethods<T extends DomainObject> {
+export interface StructMethods<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> {
   /**
    * Returns the buffer
    */
   data(): Buffer;
   /**
-   * Copies the contents of the buffer
+   * Copies the content of buffer
    * @param buffer
+   * @param offset
+   * @param size Defaults to struct.size
    */
-  copy(buffer: Buffer, offset?: byte): void;
+  copy(buffer: Buffer, offset?: byte, size?: byte): void;
   /**
-   * Copies the contents of the struct buffer
+   * Copies the content of struct's buffer
    * @param buffer
+   * @param offset
+   * @param size Defaults to struct.size
    */
-  copy(struct: Struct<T>, offset?: byte): void;
+  copy(struct: InferedStruct<T, TR>, offset?: byte, size?: byte): void;
 
   /**
    * Sets the contents of the buffer to 0
@@ -78,7 +104,7 @@ export interface StructMethods<T extends DomainObject> {
   /**
    * Returns a plain object with the content of the struct
    */
-  toJson(): T;
+  toJson(): InferedDomainObject<T, TR>;
 }
 
 export type StructOptions<
@@ -88,7 +114,10 @@ export type StructOptions<
   ? { packed?: boolean }
   : { packed?: boolean; transform?: TR };
 
-export type Struct<T extends DomainObject> = T & StructMethods<T>;
+export type Struct<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined,
+> = T & StructMethods<T, TR>;
 
 export type StructReturn<
   T extends DomainObject,
@@ -300,7 +329,7 @@ function readArray(
   return t;
 }
 function readStruct<T extends DomainObject>(
-  data: AlignedData<StructConstructor>,
+  data: AlignedData<StructConstructor<T>>,
   buffer: Buffer,
   offset: byte = 0,
   mutable: boolean = true,
@@ -376,11 +405,13 @@ function construct(
         );
         continue;
       }
-      if (Array.isArray(field.type)) {
-        writeArray(field as AlignedData<ArrayDataType>, val, buffer, offset);
-      } else {
-        if (val) write(field, buffer, val, offset);
-      }
+
+      if (val)
+        if (Array.isArray(field.type)) {
+          writeArray(field as AlignedData<ArrayDataType>, val, buffer, offset);
+        } else {
+          write(field, buffer, val, offset);
+        }
     }
     if (isStructDataType(field.type)) {
       target[k] = {};
@@ -407,43 +438,42 @@ export function struct<T extends DomainObject, TR extends Transformers<T>>(
   opts?: StructOptions<T, TR>,
 ): StructReturn<T, TR>;
 
-export function struct<T extends DomainObject>(
-  data: StructDefinitionDataType<T>,
-  opts?: StructOptions<T, Transformers<T>>,
-): any {
+export function struct<
+  T extends DomainObject,
+  TR extends Transformers<T> | undefined = undefined,
+>(data: StructDefinitionDataType<T>, opts?: StructOptions<T, TR>): any {
   const transformers = (opts as any)?.transform ?? ({} as Transformers<T>);
   const { fields, size } = alignFields(
     data as Record<keyof T, DataType>,
     opts?.packed,
   );
   let writeData = true;
-  const t = class implements StructMethods<T> {
+  const t = class implements StructMethods<T, TR> {
     public static readonly fields = fields;
     public static readonly transform: Transformers<T> = transformers;
     public static readonly size: byte = size;
     private readonly __buff__: Buffer = alloc(size);
-    public static from(buffer: Buffer, offset?: byte): Struct<BindedType<T>>;
-    public static from(struct: Struct<T>, offset?: byte): Struct<BindedType<T>>;
-    public static from(arg: any, offset: byte = 0): Struct<BindedType<T>> {
+    public static from(buffer: Buffer, offset?: byte): InferedStruct<T, TR>;
+    public static from(
+      struct: InferedStruct<T, TR>,
+      offset?: byte,
+    ): InferedStruct<T, TR>;
+    public static from(arg: any, offset: byte = 0): InferedStruct<T, TR> {
       writeData = false;
-      const bsize = arg instanceof Buffer ? arg.length : arg.size;
-      if (size > bsize) throw new Error("Invalid buffer size");
-      if (arg instanceof Buffer) {
-        const inst = new this({} as T);
-        arg.copy(inst.data(), 0, offset, offset + size);
 
-        return inst as Struct<BindedType<T>>;
-      } else {
-        const inst = new this({} as T);
-        arg.data().copy(inst.data(), 0, offset, offset + size);
-        return inst as Struct<BindedType<T>>;
-      }
+      const source: Buffer = arg instanceof Buffer ? arg : arg.data();
+      const length = source.length;
+      if (size > length) throw new Error("Invalid buffer size");
+      const inst = new this({} as T);
+
+      source.copy(inst.data(), offset, 0, size);
+      return inst as unknown as InferedStruct<T, TR>;
     }
-    public static toJson(buffer: Buffer): BindedType<T> {
+    public static toJson(buffer: Buffer): InferedDomainObject<T, TR> {
       if (buffer.length < size) throw new Error("Invalid buffer size");
       return readStruct<T>(
         {
-          type: this as StructConstructor,
+          type: t as StructConstructor<T, undefined>,
           offset: 0,
           size,
         },
@@ -452,17 +482,23 @@ export function struct<T extends DomainObject>(
         false,
       );
     }
+    public static partial(args?: Partial<T>): InferedStruct<T, TR> {
+      writeData = true;
+      const targs = args ?? {};
+      return new this(targs as T) as any;
+    }
     constructor(args: T) {
       construct(this, fields, transformers, args, this.__buff__, 0, writeData);
       writeData = true;
     }
-    public copy(buffer: Buffer, offset?: byte): void;
-    public copy(struct: Struct<T>, offset?: byte): void;
-    public copy(target: any, offset: byte = 0): void {
-      if (target instanceof Buffer) {
-        target.copy(this.__buff__, 0, offset, offset + size);
-        return;
-      } else target.data().copy(this.__buff__, 0, offset, offset + size);
+    public copy(buffer: Buffer, offset?: byte, size?: byte): void;
+    public copy(struct: InferedStruct<T, TR>, offset?: byte, size?: byte): void;
+    public copy(target: any, offset: byte = 0, s: byte = 0): void {
+      const source: Buffer = target instanceof Buffer ? target : target.data();
+      const length = source.length;
+      if (s > length) throw new Error("Invalid buffer size");
+      const _size = s || length;
+      source.copy(this.__buff__, offset, 0, _size);
     }
     public data() {
       return this.__buff__;
@@ -470,10 +506,10 @@ export function struct<T extends DomainObject>(
     public reset() {
       this.__buff__.fill(0);
     }
-    public toJson(): T {
+    public toJson(): InferedDomainObject<T, TR> {
       return readStruct<T>(
         {
-          type: t as StructConstructor,
+          type: t as StructConstructor<any, any>,
           offset: 0,
           size,
         },

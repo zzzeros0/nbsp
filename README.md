@@ -91,19 +91,20 @@ mqttClient.on("message", (topic, msg) => {
 
 ### Struct Constructor methods
 
-| Method | Description                                                       | Arguments                                    | Returned type |
-| ------ | ----------------------------------------------------------------- | -------------------------------------------- | ------------- |
-| from   | Creates a new instance and copies the buffer content from target. | `(target: Buffer \| Struct, byte: byte = 0)` | `Struct<T>`   |
-| toJson | Creates a plain object, resolving with the data of the buffer.    | `(target: Buffer, offset: byte = 0)`         | T             |
+| Method  | Description                                                       | Arguments                                    | Returned type |
+| ------- | ----------------------------------------------------------------- | -------------------------------------------- | ------------- |
+| from    | Creates a new instance and copies the buffer content from target. | `(target: Buffer \| Struct, byte: byte = 0)` | `Struct<T>`   |
+| partial | Same as `new`; creates an instance with partial arguments.        | `(args: Partial<T>)`                         | `Struct<T>`   |
+| toJson  | Returns a plaing object.                                          | `(target: Buffer, offset: byte = 0)`         | T             |
 
 ### Struct methods
 
-| Method | Description                            | Arguments                                      | Returned type |
-| ------ | -------------------------------------- | ---------------------------------------------- | ------------- |
-| data   | Returns the internal buffer (no copy). |                                                | `Buffer`      |
-| reset  | Zero the internal buffer content.      |                                                | `void`        |
-| toJson | Returns a plain object.                |                                                | `T`           |
-| copy   | Copies the buffer content from target. | `(target: Buffer \| Struct, offset: byte = 0)` | `void`        |
+| Method | Description                              | Arguments                                                      | Returned type |
+| ------ | ---------------------------------------- | -------------------------------------------------------------- | ------------- |
+| data   | Returns the internal buffer (no copy).   |                                                                | `Buffer`      |
+| reset  | Zero the internal buffer content.        |                                                                | `void`        |
+| toJson | Returns a plain object.                  |                                                                | `T`           |
+| copy   | Copies the buffer's content from target. | `(target: Buffer \| Struct, offset: byte = 0, size: byte = 0)` | `void`        |
 
 ### Struct Options
 

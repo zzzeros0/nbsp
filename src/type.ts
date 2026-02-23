@@ -43,7 +43,7 @@ export type ArrayDataType =
   | NumericArrayDataType
   | StructArrayDataType<DomainObject>;
 
-export type Type = DataType | ArrayDataType | StructConstructor<any>;
+export type Type = DataType | ArrayDataType | StructConstructor<any, any>;
 
 export type DataValue = byte | bytes | bigint | object;
 
