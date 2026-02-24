@@ -1,4 +1,5 @@
 import { type StructConstructor } from "./structure.js";
+import type { Transformers } from "./transformer.js";
 export type byte = number;
 export type bytes = byte[];
 
@@ -68,7 +69,7 @@ export type StructDefinitionDataType<T extends DomainObject> = {
           : T[K] extends boolean
             ? DataType.UINT8
             : T[K] extends DomainObject
-              ? StructConstructor<T[K]>
+              ? StructConstructor<T[K], undefined | Transformers<T[K]>>
               : never;
 };
 export interface AlignedData<T extends Type = Type> {
