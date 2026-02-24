@@ -1,6 +1,6 @@
 {
   "name": "@zzzeros0/nbsp",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Zero-copy fixed-size binary structures for NodeJS TypeScript",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
