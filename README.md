@@ -161,10 +161,6 @@ Transformers help to transform data. The second generic argument provided to `st
 When a property has transformers, its exposed TypeScript type becomes the transformed type instead of the raw BindedType<T>.
 You can have multiple transforms in input/output; each one will receive the last transformed value.
 
-Types:
-
-- `PickTransformers<DomainObject, keyof DomainObject>`
-
 ```ts
 const PersonStruct = struct<Person, { name: PropertyTransform }>(
   {

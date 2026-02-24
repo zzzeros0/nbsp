@@ -102,7 +102,7 @@ export interface StructMethods<
   /**
    * Returns a plain object with the content of the struct
    */
-  toJson(): InferedDomainObject<T, TR>;
+  toJson(): T;
 }
 
 export type StructOptions<
@@ -120,7 +120,7 @@ export type Struct<
 export type StructReturn<
   T extends DomainObject,
   TR extends Transformers<T> | undefined,
-> = StructConstructor<ApplyTransformers<T, BindedType<T>, TR>>;
+> = StructConstructor<ApplyTransformers<T, BindedType<T>, TR>, TR>;
 function alignUp(n: byte, align: byte): byte {
   return (n + align - 1) & ~(align - 1);
 }
@@ -501,7 +501,7 @@ export function struct<
     public reset() {
       this.__buff__.fill(0);
     }
-    public toJson(): InferedDomainObject<T, TR> {
+    public toJson(): T {
       return readStruct<T>(
         {
           type: t as StructConstructor<any, any>,
